@@ -1,1 +1,2 @@
 # SMART-ROUTH-AND-PATH-OPTIMIZATION-SYSTEM
+The main aim of creating this web-based application for visualizing smart delivery route and path systems and randomized maze generation algorithms was to develop a utility that helps those who find it difficult to understand how systems like Dijkstra's Algorithm or A* Algorithm work in tracing the shortest route between a start node and a destination node. These systems have widespread applications in logistics and real-time delivery systems, optimizing routes to enhance operational efficiency.

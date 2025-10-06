@@ -1,0 +1,425 @@
+package projects.Ds;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.util.*;
+import java.util.List;
+
+public class SmartDeliveryRouteAndPathSystem extends JFrame {
+
+    private static final long serialVersionUID = 1L;
+    private SimpleGraph graph;
+    private Dijkstra dijkstra;
+    private AStar aStar;
+    private List<String> path = new ArrayList<>();
+    private int source = -1;
+    private int destination = -1;
+    private DrawingPanel drawingPanel;
+
+    public SmartDeliveryRouteAndPathSystem() {
+        // Create the graph with nodes and roads (locations and travel times)
+        graph = new SimpleGraph(4); // 4 nodes (A, B, C, D)
+        graph.addNode("A");
+        graph.addNode("B");
+        graph.addNode("C");
+        graph.addNode("D");
+
+        // Add edges (with weights representing travel time)
+        graph.addEdge(0, 1, 10);
+        graph.addEdge(1, 2, 20);
+        graph.addEdge(2, 3, 30);
+        graph.addEdge(0, 3, 50);
+        graph.addEdge(2, 0, 40);
+
+        // Create controls for user interaction
+        JComboBox<String> sourceComboBox = new JComboBox<>(graph.getNodes().toArray(new String[0]));
+        JComboBox<String> destinationComboBox = new JComboBox<>(graph.getNodes().toArray(new String[0]));
+        JButton calculateButton = new JButton("Calculate Route");
+        JButton simulateTrafficButton = new JButton("Simulate Traffic");
+        JButton clearButton = new JButton("Clear Map");
+        String[] algorithmOptions = {"Dijkstra", "A*"};
+        JComboBox<String> algorithmComboBox = new JComboBox<>(algorithmOptions);
+
+        // Set up layout for controls
+        JPanel controls = new JPanel();
+        controls.add(new JLabel("Source:"));
+        controls.add(sourceComboBox);
+        controls.add(new JLabel("Destination:"));
+        controls.add(destinationComboBox);
+        controls.add(new JLabel("Algorithm:"));
+        controls.add(algorithmComboBox);
+        controls.add(calculateButton);
+        controls.add(simulateTrafficButton);
+        controls.add(clearButton);
+
+        // Drawing panel for visualizing the graph
+        drawingPanel = new DrawingPanel();
+        drawingPanel.setPreferredSize(new Dimension(600, 400));
+
+        // Set actions for the buttons
+        calculateButton.addActionListener(e -> {
+            source = sourceComboBox.getSelectedIndex();
+            destination = destinationComboBox.getSelectedIndex();
+
+            if (source != -1 && destination != -1) {
+                String selectedAlgorithm = (String) algorithmComboBox.getSelectedItem();
+                if (selectedAlgorithm.equals("Dijkstra")) {
+                    dijkstra = new Dijkstra(graph);
+                    dijkstra.findShortestPath(source);
+                    path = dijkstra.getShortestPath(destination);
+                } else if (selectedAlgorithm.equals("A*")) {
+                    int[] heuristics = calculateHeuristics(); // Calculate heuristics (Euclidean distance)
+                    aStar = new AStar(graph, heuristics);
+                    aStar.findShortestPath(source);
+                    path = aStar.getShortestPath(destination);
+                }
+                drawingPanel.repaint();
+            }
+        });
+
+        simulateTrafficButton.addActionListener(e -> {
+            // Simulate traffic delays (adjust weights)
+            TrafficSimulator.simulateTraffic(graph);
+            // Recalculate the shortest path after simulating traffic
+            if (source != -1 && destination != -1) {
+                String selectedAlgorithm = (String) algorithmComboBox.getSelectedItem();
+                if (selectedAlgorithm.equals("Dijkstra")) {
+                    dijkstra.findShortestPath(source);
+                    path = dijkstra.getShortestPath(destination);
+                } else if (selectedAlgorithm.equals("A*")) {
+                    int[] heuristics = calculateHeuristics(); // Recalculate heuristics
+                    aStar = new AStar(graph, heuristics);
+                    aStar.findShortestPath(source);
+                    path = aStar.getShortestPath(destination);
+                }
+            }
+            drawingPanel.repaint();
+        });
+
+        clearButton.addActionListener(e -> {
+            // Clear the map and reset the path
+            path.clear();
+            drawingPanel.repaint();
+        });
+
+        // Main layout
+        setLayout(new BorderLayout());
+        add(drawingPanel, BorderLayout.CENTER);
+        add(controls, BorderLayout.SOUTH);
+
+        setTitle("Smart Delivery Route and Path System");
+        pack();
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setLocationRelativeTo(null);
+        setVisible(true);
+    }
+
+    // Custom panel for drawing the graph
+    private class DrawingPanel extends JPanel {
+        private Image backgroundImage;
+
+        // Constructor to load the background image
+        public DrawingPanel() {
+            try {
+                // Load the background image (replace with the correct file path)
+                backgroundImage = new ImageIcon("images.png").getImage();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+
+            // Draw the background image first
+            if (backgroundImage != null) {
+                g.drawImage(backgroundImage, 0, 0, getWidth(), getHeight(), this);
+            }
+
+            // Then draw the graph and the shortest path on top of the background
+            drawGraph(g);
+            String algorithm = (dijkstra != null) ? "Dijkstra" : "A*";
+            drawShortestPath(g, path, algorithm);
+        }
+
+        private void drawGraph(Graphics g) {
+            // Draw nodes
+            g.setColor(Color.BLACK);
+            g.fillOval(90, 90, 20, 20); // Node A
+            g.fillOval(240, 90, 20, 20); // Node B
+            g.fillOval(240, 240, 20, 20); // Node C
+            g.fillOval(90, 240, 20, 20); // Node D
+
+            // Node Labels
+            g.drawString("A", 95, 85);
+            g.drawString("B", 245, 85);
+            g.drawString("C", 245, 275);
+            g.drawString("D", 95, 275);
+
+            // Draw edges
+            g.setColor(Color.BLACK);
+            g.drawLine(100, 100, 250, 100); // A to B
+            g.drawLine(250, 100, 250, 250); // B to C
+            g.drawLine(250, 250, 100, 250); // C to D
+            g.drawLine(100, 100, 100, 250); // A to D
+
+            // Edge weights
+            g.drawString("10", 175, 90);  // A-B
+            g.drawString("20", 260, 175); // B-C
+            g.drawString("30", 175, 265); // C-D
+            g.drawString("50", 50, 175);  // A-D
+        }
+
+        private void drawShortestPath(Graphics g, List<String> path, String algorithm) {
+            if (path.isEmpty()) return;
+
+            g.setColor(algorithm.equals("A*") ? Color.BLUE : Color.RED);
+            for (int i = 0; i < path.size() - 1; i++) {
+                int x1 = getNodeX(path.get(i));
+                int y1 = getNodeY(path.get(i));
+                int x2 = getNodeX(path.get(i + 1));
+                int y2 = getNodeY(path.get(i + 1));
+                g.drawLine(x1, y1, x2, y2); // Draw shortest path
+            }
+
+            // Display total path cost
+            g.setColor(Color.RED);
+            g.drawString("Path Cost: " + (algorithm.equals("A*") ? aStar.getDistance(destination) : dijkstra.getDistance(destination)), 10, 20);
+        }
+
+        private int getNodeX(String node) {
+            switch (node) {
+                case "A": return 100;
+                case "B": return 250;
+                case "C": return 250;
+                case "D": return 100;
+                default: return -1;
+            }
+        }
+
+        private int getNodeY(String node) {
+            switch (node) {
+                case "A": return 100;
+                case "B": return 100;
+                case "C": return 250;
+                case "D": return 250;
+                default: return -1;
+            }
+        }
+    }
+
+    // Main method to run the application
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(SmartDeliveryRouteAndPathSystem::new);
+    }
+
+    // Simple graph implementation
+    class SimpleGraph {
+        private final List<String> nodes;
+        private final int[][] adjacencyMatrix;
+
+        public SimpleGraph(int size) {
+            nodes = new ArrayList<>(size);
+            adjacencyMatrix = new int[size][size];
+            for (int i = 0; i < size; i++) {
+                Arrays.fill(adjacencyMatrix[i], Integer.MAX_VALUE);
+            }
+        }
+
+        public void addNode(String node) {
+            nodes.add(node);
+        }
+
+        public List<String> getNodes() {
+            return nodes;
+        }
+
+        public void addEdge(int from, int to, int weight) {
+            adjacencyMatrix[from][to] = weight;
+            adjacencyMatrix[to][from] = weight; // Assuming it's undirected graph
+        }
+
+        public int getWeight(int from, int to) {
+            return adjacencyMatrix[from][to];
+        }
+    }
+
+    // Dijkstra's algorithm implementation
+    class Dijkstra {
+        private final SimpleGraph graph;
+        private final int[] distances;
+        private final boolean[] visited;
+        private final int[] previous;
+
+        public Dijkstra(SimpleGraph graph) {
+            this.graph = graph;
+            int size = graph.getNodes().size();
+            distances = new int[size];
+            visited = new boolean[size];
+            previous = new int[size];
+            Arrays.fill(distances, Integer.MAX_VALUE);
+            Arrays.fill(previous, -1);
+        }
+
+        public void findShortestPath(int source) {
+            distances[source] = 0;
+
+            while (true) {
+                int currentNode = getNextNode();
+                if (currentNode == -1) break;
+
+                visited[currentNode] = true;
+
+                for (int neighbor = 0; neighbor < graph.getNodes().size(); neighbor++) {
+                    if (!visited[neighbor] && graph.getWeight(currentNode, neighbor) != Integer.MAX_VALUE) {
+                        int tentativeDistance = distances[currentNode] + graph.getWeight(currentNode, neighbor);
+                        if (tentativeDistance < distances[neighbor]) {
+                            previous[neighbor] = currentNode;
+                            distances[neighbor] = tentativeDistance;
+                        }
+                    }
+                }
+            }
+        }
+
+        private int getNextNode() {
+            int minDistance = Integer.MAX_VALUE;
+            int nextNode = -1;
+
+            for (int i = 0; i < distances.length; i++) {
+                if (!visited[i] && distances[i] < minDistance) {
+                    minDistance = distances[i];
+                    nextNode = i;
+                }
+            }
+
+            return nextNode;
+        }
+
+        public List<String> getShortestPath(int destination) {
+            List<String> path = new ArrayList<>();
+            for (int at = destination; at != -1; at = previous[at]) {
+                path.add(graph.getNodes().get(at));
+            }
+            Collections.reverse(path);
+            return path;
+        }
+
+        public int getDistance(int destination) {
+            return distances[destination];
+        }
+    }
+
+    // A* algorithm implementation
+    class AStar {
+        private final SimpleGraph graph;
+        private final int[] gScores;
+        private final int[] fScores;
+        private final boolean[] visited;
+        private final int[] previous;
+        private final int[] heuristics;
+
+        public AStar(SimpleGraph graph, int[] heuristics) {
+            this.graph = graph;
+            this.heuristics = heuristics;
+            int size = graph.getNodes().size();
+            gScores = new int[size];
+            fScores = new int[size];
+            visited = new boolean[size];
+            previous = new int[size];
+            Arrays.fill(gScores, Integer.MAX_VALUE);
+            Arrays.fill(fScores, Integer.MAX_VALUE);
+            Arrays.fill(previous, -1);
+        }
+
+        public void findShortestPath(int source) {
+            gScores[source] = 0;
+            fScores[source] = gScores[source] + heuristics[source];
+
+            while (true) {
+                int currentNode = getNextNode();
+                if (currentNode == -1) break;
+
+                visited[currentNode] = true;
+
+                for (int neighbor = 0; neighbor < graph.getNodes().size(); neighbor++) {
+                    if (!visited[neighbor] && graph.getWeight(currentNode, neighbor) != Integer.MAX_VALUE) {
+                        int tentativeGScore = gScores[currentNode] + graph.getWeight(currentNode, neighbor);
+                        if (tentativeGScore < gScores[neighbor]) {
+                            previous[neighbor] = currentNode;
+                            gScores[neighbor] = tentativeGScore;
+                            fScores[neighbor] = gScores[neighbor] + heuristics[neighbor];
+                        }
+                    }
+                }
+            }
+        }
+
+        private int getNextNode() {
+            int minFScore = Integer.MAX_VALUE;
+            int nextNode = -1;
+
+            for (int i = 0; i < fScores.length; i++) {
+                if (!visited[i] && fScores[i] < minFScore) {
+                    minFScore = fScores[i];
+                    nextNode = i;
+                }
+            }
+
+            return nextNode;
+        }
+
+        public List<String> getShortestPath(int destination) {
+            List<String> path = new ArrayList<>();
+            for (int at = destination; at != -1; at = previous[at]) {
+                path.add(graph.getNodes().get(at));
+            }
+            Collections.reverse(path);
+            return path;
+        }
+
+        public int getDistance(int destination) {
+            return fScores[destination];
+        }
+    }
+
+    // Traffic simulation (just for illustration, modify as needed)
+	class TrafficSimulator {
+	    public static void simulateTraffic(SimpleGraph graph) {
+	        // Simulate traffic by increasing the weights of all edges randomly
+	        for (int i = 0; i < graph.getNodes().size(); i++) {
+	            for (int j = 0; j < graph.getNodes().size(); j++) {
+	                if (graph.getWeight(i, j) != Integer.MAX_VALUE) {
+	                    int newWeight = graph.getWeight(i, j) + (int) (Math.random() * 10); // Random delay
+	                    graph.addEdge(i, j, newWeight); // Update the weight
+	                    
+	                }
+	            }
+	        }
+	    }
+	}
+
+    // Heuristic calculation (Euclidean distance for A*)
+    private int[] calculateHeuristics() {
+        int[] heuristics = new int[graph.getNodes().size()];
+        Map<String, Point> nodePositions = Map.of(
+            "A", new Point(100, 100),
+            "B", new Point(250, 100),
+            "C", new Point(250, 250),
+            "D", new Point(100, 250)
+        );
+
+        for (int i = 0; i < graph.getNodes().size(); i++) {
+            String nodeName = graph.getNodes().get(i);
+            Point nodePosition = nodePositions.get(nodeName);
+            Point destinationPosition = nodePositions.get(graph.getNodes().get(destination));
+            int heuristic = (int) nodePosition.distance(destinationPosition);
+            heuristics[i] = heuristic;
+        }
+
+        return heuristics;
+    }
+}
